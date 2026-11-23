@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>متابعة النظافة والسلوك - Collège Saint-Marc</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: radial-gradient(circle at top right, #eef3ff 0%, #f8faff 45%, #fff5f5 100%);
+            color: #1e293b;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .saint-marc-blue { background-color: #233B96; }
+        .saint-marc-red { background-color: #E31E24; }
+        .text-saint-marc-blue { color: #233B96; }
+        .text-saint-marc-red { color: #E31E24; }
+        .border-saint-marc-blue { border-color: #233B96; }
+        .card-shadow {
+            box-shadow: 0 10px 28px -6px rgba(35, 59, 150, 0.12), 0 4px 10px -4px rgba(227, 30, 36, 0.06);
+        }
+        .hero-banner {
+            background: linear-gradient(135deg, #233B96 0%, #1b2f7a 65%, #374fc7 100%);
+        }
+        .btn-press:active {
+            transform: scale(0.97);
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+        }
+        .logo-float {
+            animation: floatSlow 3.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 hidden transition-all duration-300 max-w-xs w-full px-4 py-3 rounded-2xl shadow-xl text-white font-bold text-center text-sm"></div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <div class="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl font-black">!</div>
+            <h3 class="text-lg font-extrabold text-slate-800 mb-2">تأكيد الحذف</h3>
+            <p class="text-sm text-slate-600 mb-6">هل أنت متأكد من رغبتك في حذف هذا السجل نهائياً؟</p>
+            <div class="flex gap-3">
+                <button id="confirmYesBtn" type="button" class="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-bold hover:bg-red-700">نعم، احذف</button>
+                <button type="button" onclick="closeConfirmModal()" class="flex-1 bg-slate-100 text-slate-700 py-2.5 rounded-xl font-bold hover:bg-slate-200">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Roster Import Modal -->
+    <div id="rosterModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-extrabold text-saint-marc-blue mb-1">إدارة أسماء طلاب الفصل</h3>
+            <p id="rosterModalSubtitle" class="text-xs text-slate-500 mb-3"></p>
+            <textarea id="rosterTextarea" rows="6" class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm focus:border-[#233B96] outline-none" placeholder="اكتب أو الصق أسماء الطلاب هنا (كل اسم في سطر منفصل)..."></textarea>
+            <div class="flex gap-3 mt-4">
+                <button type="button" onclick="saveRoster()" class="flex-1 saint-marc-blue text-white py-2.5 rounded-xl font-bold">حفظ القائمة</button>
+                <button type="button" onclick="closeRosterModal()" class="flex-1 bg-slate-100 text-slate-700 py-2.5 rounded-xl font-bold">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Details Modal -->
+    <div id="summaryModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 mb-3">
+                <h3 id="summaryModalTitle" class="text-base font-extrabold text-saint-marc-blue">تفاصيل الفصل</h3>
+                <button type="button" onclick="closeSummaryModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold">✕</button>
+            </div>
+            <div id="summaryModalBody" class="overflow-y-auto space-y-2 text-sm flex-1"></div>
+        </div>
+    </div>
+
+    <!-- Hidden File Picker for Actual School Logo -->
+    <input type="file" id="logoFileInput" accept="image/*" class="hidden" onchange="handleLogoFileUpload(event)">
+
+    <!-- Compact Header with Actual School Logo & Font Size Control -->
+    <header class="bg-white/95 backdrop-blur border-b border-slate-200 px-3.5 py-2.5 flex items-center justify-between gap-2 sticky top-0 z-30 flex-wrap">
+        <div class="flex items-center gap-2.5">
+            <img data-school-logo src="logo.jpg" alt="لوجو مدرسة Collège Saint-Marc" class="w-10 h-11 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-sm shrink-0">
+            <div>
+                <h1 class="text-sm sm:text-base font-black text-saint-marc-blue leading-tight">متابعة النظافة والسلوك</h1>
+                <p class="text-[11px] font-bold text-slate-500">Collège Saint-Marc • ٢٠٢٦ / ٢٠٢٧</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Font Size Control (+1 / +2) -->
+            <div class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2 py-1" title="تكبير حجم الخط درجتين">
+                <span class="text-[11px] font-extrabold text-slate-600">الخط:</span>
+                <button type="button" data-font-step="0" onclick="setFontStep(0)" class="font-step-btn px-2 py-0.5 rounded-lg text-[11px] font-black transition">عادي</button>
+                <button type="button" data-font-step="1" onclick="setFontStep(1)" class="font-step-btn px-2 py-0.5 rounded-lg text-[11px] font-black transition">+1</button>
+                <button type="button" data-font-step="2" onclick="setFontStep(2)" class="font-step-btn px-2 py-0.5 rounded-lg text-[11px] font-black transition">+2</button>
+            </div>
+
+            <div id="userBadgeArea" class="hidden flex items-center gap-2">
+                <div class="text-left">
+                    <span id="loggedUserName" class="block text-xs font-extrabold text-saint-marc-blue"></span>
+                    <span id="loggedUserRole" class="block text-[10px] font-bold text-emerald-600"></span>
+                </div>
+                <button type="button" onclick="logout()" class="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-xs font-bold border border-red-200">خروج</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- VIEW 1: CHEERFUL OPENING & LOGIN SCREEN -->
+    <main id="loginView" class="flex-1 max-w-md w-full mx-auto p-4 flex flex-col justify-center space-y-3.5">
+        <div class="hero-banner rounded-3xl p-4 text-white shadow-xl relative overflow-hidden">
+            <div class="flex items-center gap-3.5">
+                <div class="bg-white p-1.5 rounded-2xl shadow-lg logo-float shrink-0 flex items-center justify-center">
+                    <img data-school-logo src="logo.jpg" alt="شعار مدرسة Collège Saint-Marc" class="w-16 h-18 object-contain rounded-xl">
+                </div>
+                <div class="space-y-1 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="inline-block bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">Collège Saint-Marc</span>
+                        <button type="button" onclick="document.getElementById('logoFileInput').click()" class="text-[10px] font-extrabold bg-white/15 hover:bg-white/25 text-white px-2 py-0.5 rounded-full transition">تحديث اللوجو</button>
+                    </div>
+                    <h2 class="text-lg font-black leading-snug">متابعة النظافة والسلوك</h2>
+                    <p class="text-xs text-blue-100 font-semibold leading-relaxed">معاً نحو بيئة مدرسية نظيفة، منظمة، ومليئة بالسلوكيات الإيجابية ✨</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 mt-3.5 pt-3 border-t border-white/15 text-center text-[10px] font-extrabold">
+                <div class="bg-white/10 rounded-xl py-1.5 px-1">🧹 زيارتان أسبوعياً</div>
+                <div class="bg-white/10 rounded-xl py-1.5 px-1">⭐ إيجابي (+5 حد)</div>
+                <div class="bg-white/10 rounded-xl py-1.5 px-1">⚖️ سلبي (-5 حد)</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-5 card-shadow border border-blue-100/80">
+            <div class="text-center mb-3.5">
+                <span class="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-0.5 rounded-full mb-1">دخول آمن بالرمز الشخصي</span>
+                <h3 class="text-base font-black text-slate-800">اختر فئتك واسمك للبدء</h3>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-2xl mb-4">
+                <button id="tabGeneral" type="button" onclick="switchCategory('general')" class="py-2 rounded-xl text-[11px] font-black bg-white text-saint-marc-blue shadow-sm transition">مشرف عام</button>
+                <button id="tabCommittee" type="button" onclick="switchCategory('committee')" class="py-2 rounded-xl text-[11px] font-black text-slate-600 transition">لجنة المتابعة (6)</button>
+                <button id="tabClassTeacher" type="button" onclick="switchCategory('teacher')" class="py-2 rounded-xl text-[11px] font-black text-slate-600 transition">مدرسات الفصل (15)</button>
+            </div>
+
+            <!-- BOX 1: GENERAL SUPERVISORS -->
+            <div id="boxGeneral" class="space-y-3">
+                <div class="bg-blue-50/90 border border-blue-200 rounded-2xl p-2.5 text-[11px] text-saint-marc-blue font-bold">
+                    دخول مباشر وكامل على جميع الدفعات (الصف الأول، الصف الثاني، الصف الثالث) وجميع البنود والتقارير برمز سري مستقل لكل مشرف.
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">اسم المشرف العام:</label>
+                    <select id="generalSelect" class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold bg-white focus:border-[#233B96] outline-none">
+                        <option value="">-- اختر المشرف العام --</option>
+                        <option value="مارك فؤاد">مارك فؤاد</option>
+                        <option value="فابيين إميل">فابيين إميل</option>
+                        <option value="سوزان رافت">سوزان رافت</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">الرمز السري الشخصي (PIN):</label>
+                    <input type="password" id="generalPin" maxlength="6" placeholder="أدخل الرمز السري الخاص بك..." class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold text-center tracking-widest focus:border-[#233B96] outline-none">
+                    <p class="text-[10px] text-slate-400 mt-1 text-center">رموز التجربة: مارك فؤاد (<b>9011</b>) • فابيين إميل (<b>9022</b>) • سوزان رافت (<b>9033</b>)</p>
+                </div>
+                <button type="button" onclick="loginGeneral()" class="w-full saint-marc-blue text-white py-3.5 rounded-2xl font-extrabold text-sm shadow-lg btn-press">دخول المشرف العام</button>
+            </div>
+
+            <!-- BOX 2: FOLLOW-UP COMMITTEE (6 names across 3 grades) -->
+            <div id="boxCommittee" class="space-y-3 hidden">
+                <div class="bg-indigo-50/90 border border-indigo-200 rounded-2xl p-2.5 text-[11px] text-indigo-900 font-bold">
+                    لجنة المتابعة: كل عضوة مختصة بدفعتها (زيارتان أسبوعياً: نظافة الفصل والنظافة الشخصية) وتملك كافة بنود المتابعة والتقارير الخاصة بدفعتها.
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">اسم عضو لجنة المتابعة:</label>
+                    <select id="committeeSelect" class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold bg-white focus:border-[#233B96] outline-none">
+                        <option value="">-- اختر الاسم --</option>
+                        <option value="سوزان ونيس|الصف الأول">سوزان ونيس (الصف الأول)</option>
+                        <option value="ماريت عياد|الصف الأول">ماريت عياد (الصف الأول)</option>
+                        <option value="ماريان فكري|الصف الثاني">ماريان فكري (الصف الثاني)</option>
+                        <option value="ماريان رأفت|الصف الثاني">ماريان رأفت (الصف الثاني)</option>
+                        <option value="سارة السيد|الصف الثالث">سارة السيد (الصف الثالث)</option>
+                        <option value="فلورا فؤاد|الصف الثالث">فلورا فؤاد (الصف الثالث)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">الرمز السري الشخصي (PIN):</label>
+                    <input type="password" id="committeePin" maxlength="6" placeholder="أدخل الرمز السري (أو 1234 للتجربة)" class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold text-center tracking-widest focus:border-[#233B96] outline-none">
+                </div>
+                <button type="button" onclick="loginCommittee()" class="w-full saint-marc-blue text-white py-3.5 rounded-2xl font-extrabold text-sm shadow-lg btn-press">دخول لجنة المتابعة</button>
+            </div>
+
+            <!-- BOX 3: 15 CLASS TEACHERS -->
+            <div id="boxTeacher" class="space-y-3 hidden">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-2.5 text-[11px] text-emerald-900 font-bold">
+                    مدرسات الفصل (15 مدرسة): كل مدرسة تدخل على <b>فصلها المخصص فقط</b> لتسجيل السلوكيات الإيجابية والسلبية فقط.
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">اختر اسم مدرسة الفصل (15 مدرسة):</label>
+                    <select id="teacherSelect" class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold bg-white focus:border-[#233B96] outline-none">
+                        <option value="">-- اختر المدرسة والفصل --</option>
+                        <option value="عبير محمود|الصف الأول|A">1A - عبير محمود</option>
+                        <option value="ماريان سمير|الصف الأول|B">1B - ماريان سمير</option>
+                        <option value="كاترين مجدى|الصف الأول|C">1C - كاترين مجدى</option>
+                        <option value="چيلان محمود|الصف الأول|D">1D - چيلان محمود</option>
+                        <option value="نهى ابراهيم|الصف الأول|E">1E - نهى ابراهيم</option>
+                        <option value="نيهال أحمد|الصف الثاني|A">2A - نيهال أحمد</option>
+                        <option value="أنچلا إيهاب|الصف الثاني|B">2B - أنچلا إيهاب</option>
+                        <option value="سارة أشرف|الصف الثاني|C">2C - سارة أشرف</option>
+                        <option value="نيرمين جمال|الصف الثاني|D">2D - نيرمين جمال</option>
+                        <option value="ندى أحمد|الصف الثاني|E">2E - ندى أحمد</option>
+                        <option value="عهد ياسر|الصف الثالث|A">3A - عهد ياسر</option>
+                        <option value="ريتا فوزى|الصف الثالث|B">3B - ريتا فوزى</option>
+                        <option value="إنجى أراد|الصف الثالث|C">3C - إنجى أراد</option>
+                        <option value="فابيين إميل|الصف الثالث|D">3D - فابيين إميل</option>
+                        <option value="سالى حلمى|الصف الثالث|E">3E - سالى حلمى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">الرمز السري للمدرسة (PIN):</label>
+                    <input type="password" id="teacherPin" maxlength="6" value="1111" placeholder="أدخل الرمز السري..." class="w-full border-2 border-slate-200 rounded-2xl p-3 text-sm font-bold text-center tracking-widest focus:border-[#233B96] outline-none">
+                    <p class="text-[10px] text-slate-400 mt-1 text-center">الرمز الافتراضي للتجربة لمدرسات الفصل: <b>1111</b></p>
+                </div>
+                <button type="button" onclick="loginTeacher()" class="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-extrabold text-sm shadow-lg btn-press">دخول مدرسة الفصل</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- VIEW 2: MAIN DASHBOARD -->
+    <main id="dashboardView" class="hidden flex-1 max-w-lg w-full mx-auto p-3.5 space-y-3.5">
+        <div class="bg-white rounded-2xl p-2.5 card-shadow border border-slate-100 space-y-2">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-500">الدفعة الدراسية:</span>
+                <span id="gradeLockLabel" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-50 text-saint-marc-blue"></span>
+            </div>
+            <div id="gradeSelectorContainer" class="grid grid-cols-3 gap-1.5"></div>
+        </div>
+
+        <div id="classSelectorContainer" class="grid grid-cols-5 gap-2"></div>
+
+        <div class="grid grid-cols-3 gap-2.5">
+            <button type="button" onclick="openSummaryModal('score')" class="bg-amber-50/95 border border-amber-200 rounded-2xl p-3 text-center btn-press transition hover:shadow-md">
+                <span class="block text-[11px] font-bold text-slate-600 mb-1">نقاط الفصل</span>
+                <span id="statClassScore" class="block text-xl font-black text-slate-900">0</span>
+                <span class="block text-[9px] text-amber-700 font-bold mt-0.5">اضغط للتفاصيل</span>
+            </button>
+            <button type="button" onclick="openSummaryModal('last')" class="bg-emerald-50/95 border border-emerald-200 rounded-2xl p-3 text-center btn-press transition hover:shadow-md">
+                <span class="block text-[11px] font-bold text-slate-600 mb-1">آخر متابعة</span>
+                <span id="statLastActivity" class="block text-xs font-black text-slate-800 mt-1 truncate">لم يسجل بعد</span>
+                <span class="block text-[9px] text-emerald-700 font-bold mt-1">اضغط للتفاصيل</span>
+            </button>
+            <button type="button" onclick="openSummaryModal('logs')" class="bg-blue-50/95 border border-blue-200 rounded-2xl p-3 text-center btn-press transition hover:shadow-md">
+                <span class="block text-[11px] font-bold text-slate-600 mb-1">سجلات الفصل</span>
+                <span id="statClassLogs" class="block text-xl font-black text-saint-marc-blue">0</span>
+                <span class="block text-[9px] text-blue-700 font-bold mt-0.5">اضغط للعرض</span>
+            </button>
+        </div>
+
+        <div id="cardsGrid" class="grid grid-cols-2 gap-3 pt-1">
+            <button id="cardBtnCleanliness" type="button" onclick="openForm('cleanliness')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-sky-100 hover:border-sky-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-sky-50 border-2 border-sky-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <rect x="10" y="14" width="44" height="28" rx="4" fill="#38BDF8" stroke="#0284C7" stroke-width="3"/>
+                        <path d="M22 48L32 42L42 48" stroke="#0284C7" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M46 10L50 14M50 10L46 14" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="18" cy="22" r="2.5" fill="#FEF08A"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">نظافة الفصل</span>
+            </button>
+
+            <button id="cardBtnQueue" type="button" onclick="openForm('queue')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-indigo-100 hover:border-indigo-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <circle cx="20" cy="22" r="5" fill="#4F46E5"/>
+                        <path d="M13 44V34C13 31 16 29 20 29C24 29 27 31 27 34V44" fill="#818CF8"/>
+                        <circle cx="42" cy="22" r="5" fill="#4F46E5"/>
+                        <path d="M35 44V34C35 31 38 29 42 29C46 29 49 31 49 34V44" fill="#818CF8"/>
+                        <path d="M10 50H54" stroke="#312E81" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">الالتزام في الطابور</span>
+            </button>
+
+            <button id="cardBtnPositive" type="button" onclick="openForm('positive')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-amber-100 hover:border-amber-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <polygon points="32,8 39,23 55,25 43,36 46,52 32,44 18,52 21,36 9,25 25,23" fill="#FACC15" stroke="#D97706" stroke-width="2.5" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">السلوكيات الإيجابية</span>
+            </button>
+
+            <button id="cardBtnNegative" type="button" onclick="openForm('negative')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-rose-100 hover:border-rose-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-rose-50 border-2 border-rose-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <path d="M32 10L56 52H8L32 10Z" fill="#FDA4AF" stroke="#E11D48" stroke-width="3" stroke-linejoin="round"/>
+                        <line x1="32" y1="25" x2="32" y2="38" stroke="#9F1239" stroke-width="4" stroke-linecap="round"/>
+                        <circle cx="32" cy="45" r="2.5" fill="#9F1239"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">السلوكيات السلبية</span>
+            </button>
+
+            <button id="cardBtnHygiene" type="button" onclick="openForm('hygiene')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-teal-100 hover:border-teal-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-teal-50 border-2 border-teal-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <circle cx="20" cy="44" r="6" stroke="#0D9488" stroke-width="3"/>
+                        <circle cx="44" cy="44" r="6" stroke="#0D9488" stroke-width="3"/>
+                        <path d="M24 39L44 14M40 39L20 14" stroke="#0F766E" stroke-width="3.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">النظافة الشخصية</span>
+            </button>
+
+            <button id="cardBtnUniform" type="button" onclick="openForm('uniform')" class="bg-white rounded-3xl p-4 card-shadow border-2 border-blue-100 hover:border-blue-400 flex flex-col items-center justify-center gap-2.5 btn-press">
+                <div class="w-16 h-16 rounded-2xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center">
+                    <svg class="w-10 h-10" viewBox="0 0 64 64" fill="none">
+                        <path d="M20 14L10 22L16 30L22 26V50H42V26L48 30L54 22L44 14H38C36 18 28 18 26 14H20Z" fill="#233B96" stroke="#1E3A8A" stroke-width="2.5" stroke-linejoin="round"/>
+                        <path d="M27 14L32 22L37 14" stroke="#FFFFFF" stroke-width="2"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-black text-slate-800">الزي المدرسي</span>
+            </button>
+        </div>
+
+        <div id="supervisorBottomTools" class="grid grid-cols-2 gap-2.5 pt-2">
+            <button type="button" onclick="openReportsView()" class="saint-marc-blue text-white py-3.5 rounded-2xl font-extrabold text-xs shadow-md btn-press flex items-center justify-center gap-1.5">
+                <span>🏆 التقارير والفائز الأسبوعي</span>
+            </button>
+            <button type="button" onclick="openRosterModal()" class="bg-white text-saint-marc-blue border-2 border-[#233B96] py-3.5 rounded-2xl font-extrabold text-xs btn-press">
+                📋 أسماء طلاب الفصل
+            </button>
+        </div>
+    </main>
+
+    <!-- VIEW 3: DYNAMIC ENTRY / EDIT FORM -->
+    <main id="formView" class="hidden flex-1 max-w-lg w-full mx-auto p-3.5">
+        <div class="bg-white rounded-3xl p-5 card-shadow border border-slate-100">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 id="formTitle" class="text-lg font-black text-saint-marc-blue"></h2>
+                    <p id="formSubtitle" class="text-xs font-bold text-slate-500"></p>
+                </div>
+                <button type="button" onclick="cancelFormReturn()" class="bg-slate-100 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-extrabold">رجوع ↩</button>
+            </div>
+
+            <form id="evaluationForm" onsubmit="submitForm(event)" class="space-y-4">
+                <input type="hidden" id="formTypeInput">
+                <input type="hidden" id="editingRecordIdInput">
+
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">تاريخ التقييم / المتابعة:</label>
+                    <input type="date" id="evalDateInput" required class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm font-bold">
+                </div>
+
+                <div id="studentFieldBox" class="hidden space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-extrabold text-slate-700">اسم الطالب:</label>
+                        <button type="button" onclick="openRosterModal()" class="text-[11px] font-bold text-saint-marc-blue underline">+ إضافة / تعديل القائمة</button>
+                    </div>
+                    <select id="studentSelect" class="w-full border-2 border-slate-200 rounded-xl p-3 text-sm font-bold bg-white">
+                        <option value="">-- اختر الطالب من القائمة --</option>
+                    </select>
+                    <input type="text" id="studentCustomInput" placeholder="أو اكتب اسم الطالب يدوياً إذا لم يكن بالقائمة..." class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+                </div>
+
+                <div id="scoreFieldBox" class="hidden">
+                    <label id="scoreLabel" class="block text-xs font-extrabold text-slate-700 mb-2"></label>
+                    <div id="scoreButtonsGrid" class="grid grid-cols-5 gap-2"></div>
+                    <p id="scoreMeaningText" class="text-xs font-extrabold text-saint-marc-blue bg-blue-50 p-2.5 rounded-xl mt-2 text-center"></p>
+                </div>
+
+                <div id="tagsFieldBox" class="hidden">
+                    <label id="tagsLabel" class="block text-xs font-extrabold text-slate-700 mb-2"></label>
+                    <div id="tagsContainer" class="grid grid-cols-2 gap-2"></div>
+                </div>
+
+                <div id="involvedStudentsBox" class="hidden">
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">أسماء الطلاب (للمتابعة الفردية):</label>
+                    <input type="text" id="involvedStudentsInput" placeholder="اكتب أسماء الطلاب المتسببين أو المتميزين..." class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm">
+                </div>
+
+                <div id="parentContactBox" class="hidden bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                    <h4 class="text-xs font-black text-saint-marc-blue">متابعة التواصل مع ولي الأمر:</h4>
+                    <div class="space-y-2 text-xs font-bold">
+                        <label class="flex items-center justify-between bg-white p-2 rounded-xl border">
+                            <span class="flex items-center gap-2"><input type="checkbox" id="contactNotebook" class="w-4 h-4"> كراسة المراسلة</span>
+                            <input type="date" id="contactNotebookDate" class="border rounded-lg px-2 py-1 text-[11px]">
+                        </label>
+                        <label class="flex items-center justify-between bg-white p-2 rounded-xl border">
+                            <span class="flex items-center gap-2"><input type="checkbox" id="contactApp" class="w-4 h-4"> رسالة على الأبليكيشن</span>
+                            <input type="date" id="contactAppDate" class="border rounded-lg px-2 py-1 text-[11px]">
+                        </label>
+                        <label class="flex items-center justify-between bg-white p-2 rounded-xl border">
+                            <span class="flex items-center gap-2"><input type="checkbox" id="contactPhone" class="w-4 h-4"> تواصل تليفوني</span>
+                            <input type="date" id="contactPhoneDate" class="border rounded-lg px-2 py-1 text-[11px]">
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">ملاحظات إضافية / كتابة حرة:</label>
+                    <textarea id="notesInput" rows="2" class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm" placeholder="اكتب أي تفاصيل إضافية هنا..."></textarea>
+                </div>
+
+                <div class="pt-2 space-y-2.5">
+                    <button id="submitFormBtn" type="submit" class="w-full saint-marc-blue text-white py-3.5 rounded-2xl font-extrabold text-sm shadow-lg btn-press">حفظ البيانات في السجل ✓</button>
+                    <div class="flex justify-center">
+                        <button type="button" onclick="cancelFormReturn()" class="px-8 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-extrabold hover:bg-slate-200">رجوع للشاشة الرئيسية</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <!-- VIEW 4: REPORTS & WEEKLY WINNER -->
+    <main id="reportsView" class="hidden flex-1 max-w-2xl w-full mx-auto p-3.5 space-y-4">
+        <div class="bg-white rounded-3xl p-4 card-shadow border border-slate-100 space-y-3">
+            <div class="flex justify-between items-center">
+                <h2 class="text-base font-black text-saint-marc-blue">🏆 الحصر الأسبوعي والفائز</h2>
+                <div class="flex gap-1.5">
+                    <button type="button" onclick="exportBackupJSON()" class="bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold">نسخة احتياطية</button>
+                    <button type="button" onclick="exportCSV()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold">تصدير Excel</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500">من تاريخ:</label>
+                    <input type="date" id="filterFromDate" onchange="renderReports()" class="w-full border rounded-xl p-1.5 text-xs font-bold bg-white">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500">إلى تاريخ:</label>
+                    <input type="date" id="filterToDate" onchange="renderReports()" class="w-full border rounded-xl p-1.5 text-xs font-bold bg-white">
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs text-slate-700 space-y-1">
+                <p class="font-extrabold text-saint-marc-blue">ℹ️ آلية الاحتساب والسقوف الأسبوعية:</p>
+                <p>• دخول اللجنة ثابت <b>مرتين أسبوعياً</b> (مرة لنظافة الفصل ومرة للنظافة الشخصية)، وتُقارن الفصول داخل نفس السنة الدراسية.</p>
+                <p>• <b>السلوك الإيجابي:</b> يضاف إلى رصيد الفصل بحد أقصى <b>+5 نقاط</b> في الفترة المختارة، مع حفظ كل المواقف في السجل التفصيلي.</p>
+                <p>• <b>السلوك السلبي:</b> يُخصم من رصيد الفصل بحد أقصى <b>-5 نقاط</b> في الفترة المختارة (بحد أدنى إجمالي 0 للفصل).</p>
+            </div>
+
+            <div id="winnerBanner" class="bg-gradient-to-l from-amber-400 to-yellow-500 text-slate-900 rounded-2xl p-4 text-center shadow-md">
+                <span class="text-xs font-extrabold uppercase tracking-wide">الفصل الفائز في <span id="winnerGradeLabel"></span></span>
+                <h3 id="winnerClassTitle" class="text-2xl font-black mt-1">فصل A</h3>
+                <p id="winnerClassPoints" class="text-xs font-bold mt-0.5">إجمالي النقاط: 0 نقطة</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-right border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-700">
+                            <th class="p-2 rounded-r-xl">الفصل</th>
+                            <th class="p-2">نظافة</th>
+                            <th class="p-2">طابور</th>
+                            <th class="p-2">+ إيجابي (حد 5)</th>
+                            <th class="p-2">- سلبي (حد 5)</th>
+                            <th class="p-2 rounded-l-xl font-black">المجموع</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparisonTableBody" class="divide-y divide-slate-100 font-bold"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-4 card-shadow border border-slate-100">
+            <h3 class="text-sm font-black text-saint-marc-blue mb-2.5">📊 إحصائيات مرات دخول وتسجيل المسئولين</h3>
+            <div id="evaluatorStatsList" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-4 card-shadow border border-slate-100 space-y-3">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-saint-marc-blue">📑 سجل المتابعات التفصيلي</h3>
+                <select id="filterClassSelect" onchange="renderReports()" class="border rounded-xl px-2.5 py-1 text-xs font-bold">
+                    <option value="ALL">كل الفصول</option>
+                    <option value="A">فصل A</option>
+                    <option value="B">فصل B</option>
+                    <option value="C">فصل C</option>
+                    <option value="D">فصل D</option>
+                    <option value="E">فصل E</option>
+                </select>
+            </div>
+            <input type="text" id="searchRecordsInput" onkeyup="renderReports()" placeholder="🔍 بحث باسم الطالب أو الملاحظة..." class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+            <div id="detailedRecordsList" class="space-y-2.5 max-h-96 overflow-y-auto"></div>
+        </div>
+
+        <div class="pb-6 pt-2 flex justify-center">
+            <button type="button" onclick="backToDashboard()" class="w-full saint-marc-blue text-white py-3.5 rounded-2xl font-extrabold text-sm shadow-md btn-press">↩ رجوع لصفحة التسجيل والمتابعة</button>
+        </div>
+    </main>
+
+    <script>
+        window.onerror = function(msg, url, line) {
+            const t = document.getElementById('toast');
+            if (t) {
+                t.textContent = 'تنبيه برمجي: ' + msg;
+                t.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-xs w-full px-4 py-3 rounded-2xl shadow-xl text-white font-bold text-center text-sm bg-red-600';
+                t.classList.remove('hidden');
+            }
+        };
+
+        const STORAGE_KEY = 'saint_marc_records_v9';
+        const ROSTER_KEY = 'saint_marc_rosters_v9';
+        const LOGO_STORAGE_KEY = 'saint_marc_actual_logo_v9';
+        const FONT_STEP_KEY = 'saint_marc_font_step_v9';
+
+        const MAX_POSITIVE_CAP = 5;
+        const MAX_NEGATIVE_CAP = 5;
+
+        const FONT_STEPS = {
+            0: '100%',
+            1: '112.5%',
+            2: '125%'
+        };
+
+        function applyFontStepUI(step) {
+            document.querySelectorAll('.font-step-btn').forEach(function(btn) {
+                const isActive = Number(btn.getAttribute('data-font-step')) === step;
+                btn.className = 'font-step-btn px-2 py-0.5 rounded-lg text-[11px] font-black transition ' + (
+                    isActive ? 'bg-[#233B96] text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
+                );
+            });
+        }
+
+        function setFontStep(step) {
+            const valid = Object.prototype.hasOwnProperty.call(FONT_STEPS, Number(step)) ? Number(step) : 0;
+            document.documentElement.style.fontSize = FONT_STEPS[valid];
+            try {
+                localStorage.setItem(FONT_STEP_KEY, String(valid));
+            } catch (e) {}
+            applyFontStepUI(valid);
+        }
+
+        (function initFontStep() {
+            let saved = 0;
+            try {
+                const raw = localStorage.getItem(FONT_STEP_KEY);
+                if (raw !== null && Object.prototype.hasOwnProperty.call(FONT_STEPS, Number(raw))) {
+                    saved = Number(raw);
+                }
+            } catch (e) {}
+            setFontStep(saved);
+        })();
+
+        function setSchoolLogoSrc(src) {
+            document.querySelectorAll('img[data-school-logo]').forEach(function(img) {
+                img.src = src;
+            });
+        }
+
+        function handleLogoFileUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                try {
+                    localStorage.setItem(LOGO_STORAGE_KEY, dataUrl);
+                } catch (err) {}
+                setSchoolLogoSrc(dataUrl);
+                showToast('تم تحديث لوجو المدرسة الفعلي ✓');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        (function initSchoolLogo() {
+            let savedLogo = '';
+            try {
+                savedLogo =
+                    localStorage.getItem(LOGO_STORAGE_KEY) ||
+                    localStorage.getItem('saint_marc_actual_logo_v8') ||
+                    localStorage.getItem('saint_marc_actual_logo_v7') ||
+                    '';
+            } catch (e) {}
+            if (savedLogo) {
+                setSchoolLogoSrc(savedLogo);
+                return;
+            }
+            setSchoolLogoSrc('logo.jpg');
+        })();
+
+        const GENERAL_PINS = {
+            'مارك فؤاد': '9011',
+            'فابيين إميل': '9022',
+            'سوزان رافت': '9033'
+        };
+
+        const COMMITTEE_PINS = {
+            'سوزان ونيس': '1234',
+            'ماريت عياد': '1234',
+            'ماريان فكري': '1234',
+            'ماريان رأفت': '1234',
+            'سارة السيد': '1234',
+            'فلورا فؤاد': '1234'
+        };
+
+        const TEACHER_DEFAULT_PIN = '1111';
+
+        const GRADES = ['الصف الأول', 'الصف الثاني', 'الصف الثالث'];
+        const CLASSES = ['A', 'B', 'C', 'D', 'E'];
+
+        let currentUser = null;
+        let selectedGrade = 'الصف الأول';
+        let selectedClass = 'A';
+        let currentScore = 5;
+        let pendingDeleteId = null;
+        let returnToReportsAfterForm = false;
+
+        let records = [];
+        let rosters = {};
+        try {
+            records = JSON.parse(
+                localStorage.getItem(STORAGE_KEY) ||
+                localStorage.getItem('saint_marc_records_v8') ||
+                localStorage.getItem('saint_marc_records_v7') ||
+                localStorage.getItem('saint_marc_records_v6') ||
+                '[]'
+            );
+            rosters = JSON.parse(
+                localStorage.getItem(ROSTER_KEY) ||
+                localStorage.getItem('saint_marc_rosters_v8') ||
+                localStorage.getItem('saint_marc_rosters_v7') ||
+                localStorage.getItem('saint_marc_rosters_v6') ||
+                '{}'
+            );
+        } catch (e) {
+            records = [];
+            rosters = {};
+        }
+
+        function persistRecords() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {}
+        }
+
+        function getDefaultScoreForType(type) {
+            if (type === 'positive') return 2;
+            if (type === 'negative') return 1;
+            if (type === 'queue') return 10;
+            return 5;
+        }
+
+        const SUGGESTED_TAG_SCORES = {
+            positive: {
+                'أمانة': 3,
+                'نظافة': 2,
+                'مساعدة آخرين': 2,
+                'مواقف إيجابية': 3,
+                'تعاون والتزام': 4
+            },
+            negative: {
+                'عنف جسدي': 5,
+                'عنف لفظي': 3,
+                'تنمر على زملائه': 3,
+                'كتابة على الأثاث': 3,
+                'تخريب الأثاث': 5,
+                'كتابة بالحبر على اليد': 1
+            }
+        };
+
+        const SCORE_DESCRIPTIONS = {
+            cleanliness: {
+                5: '5 - نظافة مثالية وترتيب ممتاز للفصل',
+                4: '4 - نظافة جيدة جداً مع ملاحظات بسيطة',
+                3: '3 - نظافة متوسطة تحتاج متابعة',
+                2: '2 - مستوى نظافة ضعيف',
+                1: '1 - الفصل غير نظيف تماماً'
+            },
+            negative: {
+                5: '5 درجات خصم - مخالفة جسيمة (عنف جسدي أو تخريب كبير)',
+                4: '4 درجات خصم - مخالفة قوية تتطلب متابعة أو تواصل مع ولي الأمر',
+                3: '3 درجات خصم - مخالفة تؤثر على النظام أو الآخرين (تنمر/كتابة على الأثاث)',
+                2: '2 درجة خصم - مخالفة متوسطة أو متكررة بعد التنبيه',
+                1: '1 درجة خصم - مخالفة فردية خفيفة وعابرة تم احتواؤها'
+            },
+            positive: {
+                5: '5 نقاط - موقف سلوكي أو مبادرة استثنائية يُحتذى بها',
+                4: '4 نقاط - التزام أو دعم متميز لزميل أو موقف لافت',
+                3: '3 نقاط - موقف إيجابي مؤثر داخل الفصل',
+                2: '2 نقطة - تعاون أو أمانة واضحة',
+                1: '1 نقطة - تصرف إيجابي فردي بسيط وعابر'
+            },
+            queue: {
+                10: '10 - التزام تام وهدوء مثالي في الطابور',
+                9: '9 - التزام ممتاز جداً',
+                8: '8 - التزام جيد جداً',
+                7: '7 - التزام جيد مع حركة بسيطة',
+                6: '6 - يحتاج مزيداً من الانضباط',
+                5: '5 - متوسط الالتزام',
+                4: '4 - حديث وحركة مستمرة في الطابور',
+                3: '3 - عدم التزام واضح',
+                2: '2 - فوضى في الطابور',
+                1: '1 - عدم التزام نهائياً'
+            }
+        };
+
+        const TAGS_CONFIG = {
+            negative: ['عنف جسدي', 'عنف لفظي', 'تنمر على زملائه', 'كتابة على الأثاث', 'تخريب الأثاث', 'كتابة بالحبر على اليد'],
+            positive: ['أمانة', 'نظافة', 'مساعدة آخرين', 'مواقف إيجابية', 'تعاون والتزام'],
+            hygiene: ['تقليم الأظافر', 'قص الشعر'],
+            uniform: ['تي شيرت مخالف', 'بنطلون مخالف', 'كوتشي مخالف', 'زي رياضي في غير يومه']
+        };
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('evalDateInput').value = todayStr;
+        document.getElementById('filterToDate').value = todayStr;
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+        document.getElementById('filterFromDate').value = weekAgo;
+
+        function computeClassTotals(classRecs) {
+            const clean = classRecs
+                .filter(function(r) { return r.category === 'cleanliness'; })
+                .reduce(function(s, r) { return s + (Number(r.score) || 0); }, 0);
+
+            const queue = classRecs
+                .filter(function(r) { return r.category === 'queue'; })
+                .reduce(function(s, r) { return s + (Number(r.score) || 0); }, 0);
+
+            const rawPos = classRecs
+                .filter(function(r) { return r.category === 'positive'; })
+                .reduce(function(s, r) { return s + (Number(r.score) || 0); }, 0);
+
+            const rawNeg = classRecs
+                .filter(function(r) { return r.category === 'negative'; })
+                .reduce(function(s, r) { return s + (Number(r.score) || 0); }, 0);
+
+            const cappedPos = Math.min(MAX_POSITIVE_CAP, rawPos);
+            const cappedNeg = Math.min(MAX_NEGATIVE_CAP, rawNeg);
+            const total = Math.max(0, clean + queue + cappedPos - cappedNeg);
+
+            return {
+                clean: clean,
+                queue: queue,
+                rawPos: rawPos,
+                rawNeg: rawNeg,
+                cappedPos: cappedPos,
+                cappedNeg: cappedNeg,
+                total: total
+            };
+        }
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 max-w-xs w-full px-4 py-3 rounded-2xl shadow-xl text-white font-bold text-center text-sm ' + (isError ? 'bg-red-600' : 'bg-emerald-600');
+            t.classList.remove('hidden');
+            setTimeout(function() { t.classList.add('hidden'); }, 3000);
+        }
+
+        function switchCategory(cat) {
+            const activeCls = 'py-2 rounded-xl text-[11px] font-black bg-white text-saint-marc-blue shadow-sm transition';
+            const idleCls = 'py-2 rounded-xl text-[11px] font-black text-slate-600 transition';
+            document.getElementById('tabGeneral').className = (cat === 'general') ? activeCls : idleCls;
+            document.getElementById('tabCommittee').className = (cat === 'committee') ? activeCls : idleCls;
+            document.getElementById('tabClassTeacher').className = (cat === 'teacher') ? activeCls : idleCls;
+
+            document.getElementById('boxGeneral').classList.toggle('hidden', cat !== 'general');
+            document.getElementById('boxCommittee').classList.toggle('hidden', cat !== 'committee');
+            document.getElementById('boxTeacher').classList.toggle('hidden', cat !== 'teacher');
+        }
+
+        function loginGeneral() {
+            const name = document.getElementById('generalSelect').value;
+            const pin = document.getElementById('generalPin').value.trim();
+            if (!name) {
+                showToast('يرجى اختيار اسم المشرف العام', true);
+                return;
+            }
+            if (pin !== GENERAL_PINS[name]) {
+                showToast('الرمز السري غير صحيح لهذا المشرف', true);
+                return;
+            }
+            document.getElementById('generalPin').value = '';
+            currentUser = { name: name, role: 'general', grade: null, lockedClass: null };
+            selectedGrade = 'الصف الأول';
+            selectedClass = 'A';
+            enterDashboard();
+            showToast('مرحباً بك ' + name + ' (صلاحية مشرف عام)');
+        }
+
+        function loginCommittee() {
+            const val = document.getElementById('committeeSelect').value;
+            const pin = document.getElementById('committeePin').value.trim();
+            if (!val) {
+                showToast('يرجى اختيار اسم عضو لجنة المتابعة', true);
+                return;
+            }
+            const parts = val.split('|');
+            const name = parts[0];
+            const grade = parts[1];
+            if (pin !== COMMITTEE_PINS[name]) {
+                showToast('الرمز السري غير صحيح', true);
+                return;
+            }
+            document.getElementById('committeePin').value = '';
+            currentUser = { name: name, role: 'committee', grade: grade, lockedClass: null };
+            selectedGrade = grade;
+            selectedClass = 'A';
+            enterDashboard();
+            showToast('مرحباً بكِ يا ' + name + ' (' + grade + ')');
+        }
+
+        function loginTeacher() {
+            const val = document.getElementById('teacherSelect').value;
+            const pin = document.getElementById('teacherPin').value.trim();
+            if (!val) {
+                showToast('يرجى اختيار اسم مدرسة الفصل', true);
+                return;
+            }
+            if (pin !== TEACHER_DEFAULT_PIN) {
+                showToast('الرمز السري غير صحيح (الافتراضي 1111)', true);
+                return;
+            }
+            const parts = val.split('|');
+            const name = parts[0];
+            const grade = parts[1];
+            const cls = parts[2];
+
+            currentUser = { name: name, role: 'teacher', grade: grade, lockedClass: cls };
+            selectedGrade = grade;
+            selectedClass = cls;
+            enterDashboard();
+            showToast('مرحباً بكِ يا ' + name + ' - فصل ' + cls);
+        }
+
+        function logout() {
+            currentUser = null;
+            returnToReportsAfterForm = false;
+            document.getElementById('userBadgeArea').classList.add('hidden');
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('formView').classList.add('hidden');
+            document.getElementById('reportsView').classList.add('hidden');
+            document.getElementById('loginView').classList.remove('hidden');
+        }
+
+        function enterDashboard() {
+            returnToReportsAfterForm = false;
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('formView').classList.add('hidden');
+            document.getElementById('reportsView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+
+            document.getElementById('userBadgeArea').classList.remove('hidden');
+            document.getElementById('loggedUserName').textContent = currentUser.name;
+
+            if (currentUser.role === 'general') {
+                document.getElementById('loggedUserRole').textContent = 'مشرف عام (كل الدفعات)';
+                document.getElementById('gradeLockLabel').textContent = 'مفتوح لكل الدفعات';
+            } else if (currentUser.role === 'committee') {
+                document.getElementById('loggedUserRole').textContent = 'لجنة المتابعة - ' + currentUser.grade;
+                document.getElementById('gradeLockLabel').textContent = 'مقيد بدفعتك فقط';
+            } else {
+                document.getElementById('loggedUserRole').textContent = 'مدرسة فصل (' + currentUser.lockedClass + ')';
+                document.getElementById('gradeLockLabel').textContent = 'مقيد بفصلك فقط';
+            }
+
+            const gradeBox = document.getElementById('gradeSelectorContainer');
+            gradeBox.innerHTML = '';
+            GRADES.forEach(function(g) {
+                const canPickGrade = (currentUser.role === 'general') || (selectedGrade === g);
+                const isActive = (selectedGrade === g);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = g;
+                btn.disabled = !canPickGrade;
+                btn.className = 'py-2 rounded-xl text-[11px] font-black transition ' + (
+                    isActive ? 'saint-marc-blue text-white shadow-sm' :
+                    !canPickGrade ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-50 text-slate-700 border border-slate-200'
+                );
+                btn.onclick = function() {
+                    selectedGrade = g;
+                    selectedClass = 'A';
+                    enterDashboard();
+                };
+                gradeBox.appendChild(btn);
+            });
+
+            const container = document.getElementById('classSelectorContainer');
+            container.innerHTML = '';
+            CLASSES.forEach(function(cls) {
+                const isLockedOut = (currentUser.role === 'teacher' && currentUser.lockedClass !== cls);
+                const isSelected = (selectedClass === cls);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = 'فصل ' + cls;
+                btn.disabled = isLockedOut;
+                btn.className = 'py-2.5 rounded-2xl text-xs font-black transition ' + (
+                    isSelected ? 'saint-marc-blue text-white shadow-md' :
+                    isLockedOut ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-700 border border-slate-200'
+                );
+                btn.onclick = function() { selectedClass = cls; enterDashboard(); };
+                container.appendChild(btn);
+            });
+
+            const isTeacher = (currentUser.role === 'teacher');
+            document.getElementById('cardBtnCleanliness').classList.toggle('hidden', isTeacher);
+            document.getElementById('cardBtnQueue').classList.toggle('hidden', isTeacher);
+            document.getElementById('cardBtnHygiene').classList.toggle('hidden', isTeacher);
+            document.getElementById('cardBtnUniform').classList.toggle('hidden', isTeacher);
+            document.getElementById('supervisorBottomTools').classList.toggle('hidden', isTeacher);
+
+            updateClassSummaryStats();
+        }
+
+        function updateClassSummaryStats() {
+            const classRecs = records.filter(function(r) {
+                return r.grade === selectedGrade && r.className === selectedClass;
+            });
+            const totals = computeClassTotals(classRecs);
+            document.getElementById('statClassScore').textContent = totals.total;
+            document.getElementById('statClassLogs').textContent = classRecs.length;
+
+            if (classRecs.length > 0) {
+                const latest = classRecs[classRecs.length - 1];
+                document.getElementById('statLastActivity').textContent = latest.categoryLabel + ' (' + latest.date + ')';
+            } else {
+                document.getElementById('statLastActivity').textContent = 'لم يسجل بعد';
+            }
+        }
+
+        function openSummaryModal() {
+            const classRecs = records.filter(function(r) {
+                return r.grade === selectedGrade && r.className === selectedClass;
+            }).slice().reverse();
+
+            const titleEl = document.getElementById('summaryModalTitle');
+            const bodyEl = document.getElementById('summaryModalBody');
+
+            titleEl.textContent = 'سجلات ' + selectedGrade + ' - فصل ' + selectedClass;
+            if (classRecs.length === 0) {
+                bodyEl.innerHTML = '<p class="text-center text-slate-400 py-6 font-bold">لا توجد سجلات مسجلة لهذا الفصل حتى الآن.</p>';
+            } else {
+                bodyEl.innerHTML = classRecs.map(function(r) {
+                    const scoreLabel = r.category === 'negative'
+                        ? ('خصم: -' + r.score)
+                        : (r.score ? ('الدرجة: +' + r.score) : '');
+                    return '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">' +
+                        '<div class="flex justify-between items-center mb-1">' +
+                            '<span class="font-black text-saint-marc-blue">' + r.categoryLabel + '</span>' +
+                            '<span class="text-[11px] font-bold text-slate-500">' + r.date + '</span>' +
+                        '</div>' +
+                        (scoreLabel ? '<p class="text-xs font-extrabold ' + (r.category === 'negative' ? 'text-rose-700' : 'text-emerald-700') + '">' + scoreLabel + '</p>' : '') +
+                        (r.studentName ? '<p class="text-xs font-extrabold text-slate-800">الطالب: ' + r.studentName + '</p>' : '') +
+                        (r.involvedStudents ? '<p class="text-xs text-slate-700">الطلاب: ' + r.involvedStudents + '</p>' : '') +
+                        (r.tags && r.tags.length ? '<p class="text-xs text-slate-600 mt-1">البنود: ' + r.tags.join('، ') + '</p>' : '') +
+                        '<div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-200">' +
+                            '<span class="text-[10px] text-slate-400">بواسطة: ' + r.evaluator + (r.updatedBy ? ' • معدل بواسطة: ' + r.updatedBy : '') + '</span>' +
+                            '<button type="button" onclick="closeSummaryModal(); editRecord(\'' + r.id + '\');" class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg text-[11px] font-extrabold hover:bg-amber-200">تعديل ✏️</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            }
+            document.getElementById('summaryModal').classList.remove('hidden');
+        }
+
+        function closeSummaryModal() {
+            document.getElementById('summaryModal').classList.add('hidden');
+        }
+
+        function suggestScoreFromTags(type, tags) {
+            const map = SUGGESTED_TAG_SCORES[type];
+            if (!map || !Array.isArray(tags) || tags.length === 0) return null;
+            let best = null;
+            tags.forEach(function(tag) {
+                if (Object.prototype.hasOwnProperty.call(map, tag)) {
+                    const val = map[tag];
+                    if (best === null || val > best) {
+                        best = val;
+                    }
+                }
+            });
+            return best;
+        }
+
+        function configureFormView(type, existingRecord) {
+            const rec = existingRecord || null;
+            const isEditing = Boolean(rec);
+            returnToReportsAfterForm = isEditing;
+
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('reportsView').classList.add('hidden');
+            document.getElementById('formView').classList.remove('hidden');
+
+            document.getElementById('evaluationForm').reset();
+            document.getElementById('formTypeInput').value = type;
+            document.getElementById('editingRecordIdInput').value = isEditing ? rec.id : '';
+            document.getElementById('evalDateInput').value = isEditing ? rec.date : todayStr;
+
+            const titles = {
+                cleanliness: 'تقييم نظافة الفصل',
+                queue: 'الالتزام في الطابور',
+                positive: 'السلوكيات الإيجابية للفصل',
+                negative: 'السلوكيات السلبية للفصل',
+                hygiene: 'متابعة النظافة الشخصية للطالب',
+                uniform: 'متابعة الزي المدرسي للطالب'
+            };
+
+            const targetGrade = isEditing ? rec.grade : selectedGrade;
+            const targetClass = isEditing ? rec.className : selectedClass;
+
+            document.getElementById('formTitle').textContent = (isEditing ? 'تعديل: ' : '') + titles[type];
+            document.getElementById('formSubtitle').textContent = targetGrade + ' - فصل ' + targetClass;
+            document.getElementById('submitFormBtn').textContent = isEditing ? 'حفظ التعديلات ✓' : 'حفظ البيانات في السجل ✓';
+
+            const isStudentForm = (type === 'hygiene' || type === 'uniform');
+            document.getElementById('studentFieldBox').classList.toggle('hidden', !isStudentForm);
+            document.getElementById('parentContactBox').classList.toggle('hidden', !isStudentForm);
+            document.getElementById('scoreFieldBox').classList.toggle('hidden', isStudentForm);
+            document.getElementById('involvedStudentsBox').classList.toggle('hidden', !(type === 'positive' || type === 'negative'));
+
+            if (isStudentForm) {
+                populateStudentDropdown(targetGrade, targetClass);
+                if (isEditing && rec.studentName) {
+                    const sel = document.getElementById('studentSelect');
+                    const existsInList = Array.from(sel.options).some(function(o) { return o.value === rec.studentName; });
+                    if (existsInList) {
+                        sel.value = rec.studentName;
+                    } else {
+                        document.getElementById('studentCustomInput').value = rec.studentName;
+                    }
+                }
+            } else {
+                const max = (type === 'queue') ? 10 : 5;
+                if (isEditing && Number(rec.score) >= 1 && Number(rec.score) <= max) {
+                    currentScore = Number(rec.score);
+                } else {
+                    currentScore = getDefaultScoreForType(type);
+                }
+                renderScoreButtons(type);
+            }
+
+            const tagsBox = document.getElementById('tagsFieldBox');
+            const tagsContainer = document.getElementById('tagsContainer');
+            if (TAGS_CONFIG[type]) {
+                tagsBox.classList.remove('hidden');
+                document.getElementById('tagsLabel').textContent = isStudentForm
+                    ? 'حدد المخالفة / الملاحظة:'
+                    : 'اختر السلوكيات المرصودة (يُرشّح مستوى الدرجة تلقائياً ويمكن تعديله):';
+                const activeTags = (isEditing && Array.isArray(rec.tags)) ? rec.tags : [];
+                tagsContainer.innerHTML = TAGS_CONFIG[type].map(function(tag) {
+                    const checkedAttr = activeTags.includes(tag) ? ' checked' : '';
+                    return '<label class="flex items-center gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold cursor-pointer">' +
+                        '<input type="checkbox" name="evalTags" value="' + tag + '"' + checkedAttr + ' class="w-4 h-4 accent-[#233B96]">' +
+                        '<span>' + tag + '</span>' +
+                    '</label>';
+                }).join('');
+
+                if (!isStudentForm) {
+                    tagsContainer.querySelectorAll('input[name="evalTags"]').forEach(function(cb) {
+                        cb.addEventListener('change', function() {
+                            const checked = Array.from(tagsContainer.querySelectorAll('input[name="evalTags"]:checked')).map(function(el) { return el.value; });
+                            if (!SUGGESTED_TAG_SCORES[type]) return;
+                            if (checked.length === 0) {
+                                currentScore = getDefaultScoreForType(type);
+                                renderScoreButtons(type);
+                                return;
+                            }
+                            const suggested = suggestScoreFromTags(type, checked);
+                            if (suggested !== null) {
+                                currentScore = suggested;
+                                renderScoreButtons(type);
+                            }
+                        });
+                    });
+                }
+            } else {
+                tagsBox.classList.add('hidden');
+            }
+
+            if (isEditing) {
+                document.getElementById('involvedStudentsInput').value = rec.involvedStudents || '';
+                document.getElementById('notesInput').value = rec.notes || '';
+                (rec.contactMethods || []).forEach(function(cm) {
+                    if (cm.indexOf('كراسة المراسلة') !== -1) {
+                        document.getElementById('contactNotebook').checked = true;
+                        const m = cm.match(/\(([^)]+)\)/);
+                        if (m) document.getElementById('contactNotebookDate').value = m[1];
+                    }
+                    if (cm.indexOf('الأبليكيشن') !== -1) {
+                        document.getElementById('contactApp').checked = true;
+                        const m = cm.match(/\(([^)]+)\)/);
+                        if (m) document.getElementById('contactAppDate').value = m[1];
+                    }
+                    if (cm.indexOf('تواصل تليفوني') !== -1) {
+                        document.getElementById('contactPhone').checked = true;
+                        const m = cm.match(/\(([^)]+)\)/);
+                        if (m) document.getElementById('contactPhoneDate').value = m[1];
+                    }
+                });
+            }
+        }
+
+        function openForm(type) {
+            configureFormView(type, null);
+        }
+
+        function editRecord(id) {
+            const target = records.find(function(r) { return r.id === id; });
+            if (!target) {
+                showToast('لم يتم العثور على السجل المطلوب تعديله', true);
+                return;
+            }
+            configureFormView(target.category, target);
+        }
+
+        function renderScoreButtons(type) {
+            const max = (type === 'queue') ? 10 : 5;
+            if (currentScore < 1 || currentScore > max) {
+                currentScore = max;
+            }
+
+            const scoreTitle = (type === 'negative')
+                ? ('اختر شدة المخالفة / الخصم (من 1 إلى ' + max + '):')
+                : ('اختر الدرجة (من 1 إلى ' + max + '):');
+            document.getElementById('scoreLabel').textContent = scoreTitle;
+
+            const grid = document.getElementById('scoreButtonsGrid');
+            grid.className = 'grid grid-cols-5 gap-2';
+            grid.innerHTML = '';
+
+            const meaningEl = document.getElementById('scoreMeaningText');
+
+            function updateButtonsVisual() {
+                grid.querySelectorAll('button[data-score]').forEach(function(btn) {
+                    const val = Number(btn.getAttribute('data-score'));
+                    const isSelected = (val === currentScore);
+                    btn.className = 'py-2.5 rounded-xl font-black text-sm border-2 transition cursor-pointer ' + (
+                        isSelected
+                            ? (type === 'negative' ? 'bg-rose-600 text-white border-rose-700 shadow-sm' : 'saint-marc-blue text-white border-[#233B96] shadow-sm')
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+                    );
+                });
+                meaningEl.textContent =
+                    (SCORE_DESCRIPTIONS[type] && SCORE_DESCRIPTIONS[type][currentScore])
+                        ? SCORE_DESCRIPTIONS[type][currentScore]
+                        : ('الدرجة المختارة: ' + currentScore);
+            }
+
+            for (let i = 1; i <= max; i++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('data-score', String(i));
+                btn.textContent = String(i);
+                btn.addEventListener('click', function() {
+                    currentScore = i;
+                    updateButtonsVisual();
+                });
+                grid.appendChild(btn);
+            }
+
+            updateButtonsVisual();
+        }
+
+        function populateStudentDropdown(gradeVal, classVal) {
+            const key = (gradeVal || selectedGrade) + '_' + (classVal || selectedClass);
+            const list = rosters[key] || [];
+            const sel = document.getElementById('studentSelect');
+            sel.innerHTML = '<option value="">-- اختر الطالب من القائمة --</option>' +
+                list.map(function(name) { return '<option value="' + name + '">' + name + '</option>'; }).join('');
+        }
+
+        function openRosterModal() {
+            const key = selectedGrade + '_' + selectedClass;
+            document.getElementById('rosterModalSubtitle').textContent = 'قائمة طلاب ' + selectedGrade + ' - فصل ' + selectedClass;
+            document.getElementById('rosterTextarea').value = (rosters[key] || []).join('\n');
+            document.getElementById('rosterModal').classList.remove('hidden');
+        }
+
+        function closeRosterModal() {
+            document.getElementById('rosterModal').classList.add('hidden');
+        }
+
+        function saveRoster() {
+            const key = selectedGrade + '_' + selectedClass;
+            const lines = document.getElementById('rosterTextarea').value
+                .split('\n')
+                .map(function(s) { return s.trim(); })
+                .filter(Boolean);
+            rosters[key] = lines;
+            localStorage.setItem(ROSTER_KEY, JSON.stringify(rosters));
+            populateStudentDropdown(selectedGrade, selectedClass);
+            closeRosterModal();
+            showToast('تم حفظ ' + lines.length + ' طالب في قائمة الفصل');
+        }
+
+        function submitForm(e) {
+            e.preventDefault();
+            const type = document.getElementById('formTypeInput').value;
+            const editingId = document.getElementById('editingRecordIdInput').value;
+            const existingIndex = editingId ? records.findIndex(function(r) { return r.id === editingId; }) : -1;
+            const existingRecord = (existingIndex !== -1) ? records[existingIndex] : null;
+
+            const date = document.getElementById('evalDateInput').value;
+            const isStudentForm = (type === 'hygiene' || type === 'uniform');
+
+            let studentName = '';
+            if (isStudentForm) {
+                studentName = document.getElementById('studentCustomInput').value.trim() || document.getElementById('studentSelect').value;
+                if (!studentName) {
+                    showToast('يرجى اختيار أو كتابة اسم الطالب', true);
+                    return;
+                }
+            }
+
+            const selectedTags = Array.from(document.querySelectorAll('input[name="evalTags"]:checked')).map(function(cb) { return cb.value; });
+
+            const contactMethods = [];
+            if (document.getElementById('contactNotebook').checked) {
+                contactMethods.push('كراسة المراسلة (' + (document.getElementById('contactNotebookDate').value || date) + ')');
+            }
+            if (document.getElementById('contactApp').checked) {
+                contactMethods.push('الأبليكيشن (' + (document.getElementById('contactAppDate').value || date) + ')');
+            }
+            if (document.getElementById('contactPhone').checked) {
+                contactMethods.push('تواصل تليفوني (' + (document.getElementById('contactPhoneDate').value || date) + ')');
+            }
+
+            const labels = {
+                cleanliness: 'نظافة الفصل',
+                queue: 'الالتزام في الطابور',
+                positive: 'سلوكيات إيجابية',
+                negative: 'سلوكيات سلبية',
+                hygiene: 'نظافة شخصية',
+                uniform: 'زي مدرسي'
+            };
+
+            const recordPayload = {
+                id: existingRecord ? existingRecord.id : Date.now().toString(),
+                date: date,
+                grade: existingRecord ? existingRecord.grade : selectedGrade,
+                className: existingRecord ? existingRecord.className : selectedClass,
+                category: type,
+                categoryLabel: labels[type],
+                score: isStudentForm ? 0 : Number(currentScore),
+                studentName: studentName,
+                involvedStudents: document.getElementById('involvedStudentsInput').value.trim(),
+                tags: selectedTags,
+                contactMethods: contactMethods,
+                notes: document.getElementById('notesInput').value.trim(),
+                evaluator: existingRecord ? existingRecord.evaluator : currentUser.name,
+                updatedBy: existingRecord ? currentUser.name : undefined
+            };
+
+            if (existingIndex !== -1) {
+                records[existingIndex] = recordPayload;
+                persistRecords();
+                showToast('تم تحديث السجل بنجاح ✓');
+                openReportsView();
+            } else {
+                records.push(recordPayload);
+                persistRecords();
+                showToast('تم حفظ التقييم بنجاح ✓');
+                backToDashboard();
+            }
+        }
+
+        function cancelFormReturn() {
+            const shouldReturnToReports = returnToReportsAfterForm;
+            returnToReportsAfterForm = false;
+            if (shouldReturnToReports) {
+                openReportsView();
+            } else {
+                backToDashboard();
+            }
+        }
+
+        function backToDashboard() {
+            returnToReportsAfterForm = false;
+            document.getElementById('formView').classList.add('hidden');
+            document.getElementById('reportsView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            updateClassSummaryStats();
+        }
+
+        function openReportsView() {
+            returnToReportsAfterForm = false;
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('formView').classList.add('hidden');
+            document.getElementById('reportsView').classList.remove('hidden');
+            renderReports();
+        }
+
+        function renderReports() {
+            const from = document.getElementById('filterFromDate').value;
+            const to = document.getElementById('filterToDate').value;
+            const clsFilter = document.getElementById('filterClassSelect').value;
+            const search = document.getElementById('searchRecordsInput').value.trim().toLowerCase();
+
+            const filtered = records.filter(function(r) {
+                if (r.grade !== selectedGrade) return false;
+                if (from && r.date < from) return false;
+                if (to && r.date > to) return false;
+                return true;
+            });
+
+            let bestClass = 'A';
+            let bestScore = -1;
+            const tbody = document.getElementById('comparisonTableBody');
+            tbody.innerHTML = '';
+
+            CLASSES.forEach(function(cls) {
+                const cRecs = filtered.filter(function(r) { return r.className === cls; });
+                const t = computeClassTotals(cRecs);
+
+                if (t.total > bestScore) {
+                    bestScore = t.total;
+                    bestClass = cls;
+                }
+
+                const posText = (t.rawPos > MAX_POSITIVE_CAP)
+                    ? ('+' + t.cappedPos + ' (' + t.rawPos + ')')
+                    : ('+' + t.cappedPos);
+                const negText = (t.rawNeg > MAX_NEGATIVE_CAP)
+                    ? ('-' + t.cappedNeg + ' (-' + t.rawNeg + ')')
+                    : ('-' + t.cappedNeg);
+
+                tbody.innerHTML += '<tr class="' + (t.total === bestScore && t.total > 0 ? 'bg-amber-50' : '') + '">' +
+                    '<td class="p-2 font-black text-saint-marc-blue">فصل ' + cls + '</td>' +
+                    '<td class="p-2">' + t.clean + '</td>' +
+                    '<td class="p-2">' + t.queue + '</td>' +
+                    '<td class="p-2 text-emerald-700">' + posText + '</td>' +
+                    '<td class="p-2 text-rose-700">' + negText + '</td>' +
+                    '<td class="p-2 font-black text-saint-marc-blue">' + t.total + '</td>' +
+                '</tr>';
+            });
+
+            document.getElementById('winnerGradeLabel').textContent = selectedGrade;
+            document.getElementById('winnerClassTitle').textContent = bestScore > 0 ? 'فصل ' + bestClass : 'لا توجد نقاط مسجلة بعد';
+            document.getElementById('winnerClassPoints').textContent = 'إجمالي النقاط: ' + Math.max(0, bestScore) + ' نقطة';
+
+            const counts = {};
+            filtered.forEach(function(r) {
+                counts[r.evaluator] = (counts[r.evaluator] || 0) + 1;
+            });
+            const statsDiv = document.getElementById('evaluatorStatsList');
+            const entries = Object.entries(counts);
+            statsDiv.innerHTML = entries.length ? entries.map(function(pair) {
+                return '<div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl border">' +
+                    '<span class="font-extrabold text-slate-800">' + pair[0] + '</span>' +
+                    '<span class="bg-blue-100 text-saint-marc-blue px-2.5 py-0.5 rounded-full font-black">' + pair[1] + ' مرة</span>' +
+                '</div>';
+            }).join('') : '<p class="text-slate-400">لا توجد عمليات تسجيل في هذه الفترة.</p>';
+
+            const detailedList = document.getElementById('detailedRecordsList');
+            const detailFiltered = filtered.filter(function(r) {
+                if (clsFilter !== 'ALL' && r.className !== clsFilter) return false;
+                if (search) {
+                    const hay = ((r.studentName || '') + ' ' + (r.involvedStudents || '') + ' ' + (r.notes || '') + ' ' + (r.tags || []).join(' ')).toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).slice().reverse();
+
+            detailedList.innerHTML = detailFiltered.length ? detailFiltered.map(function(r) {
+                const scoreText = r.category === 'negative'
+                    ? ('أثر الخصم: -' + r.score + ' (ضمن حد -5 أسبوعياً)')
+                    : (r.score ? ('الدرجة: +' + r.score + (r.category === 'positive' ? ' (ضمن حد +5 أسبوعياً)' : '')) : '');
+                return '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 relative">' +
+                    '<div class="flex justify-between items-start gap-2">' +
+                        '<div>' +
+                            '<span class="inline-block bg-blue-100 text-saint-marc-blue text-[10px] font-black px-2 py-0.5 rounded-lg">فصل ' + r.className + ' - ' + r.categoryLabel + '</span>' +
+                            '<span class="text-[10px] text-slate-500 font-bold mr-1">' + r.date + '</span>' +
+                        '</div>' +
+                        '<div class="flex items-center gap-1.5 shrink-0">' +
+                            '<button type="button" onclick="editRecord(\'' + r.id + '\')" class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg text-[11px] font-extrabold hover:bg-amber-200">تعديل ✏️</button>' +
+                            '<button type="button" onclick="askDelete(\'' + r.id + '\')" class="bg-red-50 text-red-600 px-2.5 py-1 rounded-lg text-[11px] font-extrabold hover:bg-red-100">حذف 🗑</button>' +
+                        '</div>' +
+                    '</div>' +
+                    (r.studentName ? '<p class="text-xs font-black text-slate-800 mt-1.5">الطالب: ' + r.studentName + '</p>' : '') +
+                    (scoreText ? '<p class="text-xs font-extrabold ' + (r.category === 'negative' ? 'text-rose-700' : 'text-emerald-700') + ' mt-1">' + scoreText + '</p>' : '') +
+                    (r.tags && r.tags.length ? '<p class="text-xs text-slate-700 mt-1">البنود: ' + r.tags.join('، ') + '</p>' : '') +
+                    (r.involvedStudents ? '<p class="text-xs text-slate-600 mt-1">الطلاب: ' + r.involvedStudents + '</p>' : '') +
+                    (r.contactMethods && r.contactMethods.length ? '<p class="text-[11px] text-amber-800 font-bold mt-1">التواصل: ' + r.contactMethods.join(' | ') + '</p>' : '') +
+                    (r.notes ? '<p class="text-xs text-slate-500 mt-1">ملاحظة: ' + r.notes + '</p>' : '') +
+                    '<p class="text-[10px] text-slate-400 mt-1">المسجل: ' + r.evaluator + (r.updatedBy ? ' • تم التعديل بواسطة: ' + r.updatedBy : '') + '</p>' +
+                '</div>';
+            }).join('') : '<p class="text-center text-slate-400 py-4 text-xs font-bold">لا توجد سجلات مطابقة للبحث.</p>';
+        }
+
+        function askDelete(id) {
+            pendingDeleteId = id;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            pendingDeleteId = null;
+            document.getElementById('confirmModal').classList.add('hidden');
+        }
+
+        document.getElementById('confirmYesBtn').onclick = function() {
+            if (pendingDeleteId) {
+                records = records.filter(function(r) { return r.id !== pendingDeleteId; });
+                persistRecords();
+                closeConfirmModal();
+                renderReports();
+                showToast('تم حذف السجل بنجاح');
+            }
+        };
+
+        function exportBackupJSON() {
+            const dataStr = JSON.stringify({ records: records, rosters: rosters, exportedAt: new Date().toISOString() }, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'saint_marc_backup_' + todayStr + '.json';
+            a.click();
+            showToast('تم تحميل النسخة الاحتياطية بنجاح');
+        }
+
+        function exportCSV() {
+            const headers = ['التاريخ', 'الصف', 'الفصل', 'البند', 'الدرجة', 'اسم الطالب', 'التفاصيل', 'التواصل مع ولي الأمر', 'ملاحظات', 'المسجل'];
+            const rows = records.filter(function(r) { return r.grade === selectedGrade; }).map(function(r) {
+                return [
+                    r.date, r.grade, r.className, r.categoryLabel, r.score,
+                    r.studentName || r.involvedStudents,
+                    (r.tags || []).join(' - '),
+                    (r.contactMethods || []).join(' - '),
+                    r.notes, r.evaluator
+                ];
+            });
+            const csvContent = '\uFEFF' + [headers].concat(rows).map(function(e) {
+                return e.map(function(v) { return '"' + ((v || '').toString().replace(/"/g, '""')) + '"'; }).join(',');
+            }).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'saint_marc_' + selectedGrade + '_' + todayStr + '.csv';
+            a.click();
+            showToast('تم تصدير ملف Excel (CSV) بنجاح');
+        }
+    </script>
+</body>
+</html>
